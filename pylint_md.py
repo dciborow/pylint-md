@@ -12,37 +12,41 @@ def pylint_markdown(location, output_path):
 
     totals = {'error': 0, 'warning': 0, 'refactor': 0, 'convention': 0}
 
-    markdown_summary = list()
-    markdown_summary.append('# Analysis of folder {}'.format(location))
-
-    analysisfiles = glob.glob(location +'/**/*.py', recursive=True)
+    markdown_summary = [f'# Analysis of folder {location}']
+    analysisfiles = glob.glob(f'{location}/**/*.py', recursive=True)
     filecount = len(analysisfiles)
 
-    print('Performing analysis of {} file(s)'.format(filecount))
+    print(f'Performing analysis of {filecount} file(s)')
 
-    markdown_files = list()
-    for filepath in glob.glob(location +'/**/*.py', recursive=True):
-        print('Processing file {}'.format(filepath))
+    markdown_files = []
+    for filepath in glob.glob(f'{location}/**/*.py', recursive=True):
+        print(f'Processing file {filepath}')
 
-        markdown_files.append('## {}'.format(filepath))
-        markdown_files.append('### Summary')
-
+        markdown_files.extend((f'## {filepath}', '### Summary'))
         json_counter = Counter()
         lint_json = None
 
-        proc = subprocess.Popen("pylint "+ filepath + " -f json --persistent=n --score=y",
-                                stdout=subprocess.PIPE, shell=True)
+        proc = subprocess.Popen(
+            f"pylint {filepath} -f json --persistent=n --score=y",
+            stdout=subprocess.PIPE,
+            shell=True,
+        )
+
         (out, _err) = proc.communicate()
         if out and  out.strip():
             lint_json = json.loads(out)
             json_counter = Counter(player['type'] for player in lint_json)
 
-        markdown_files.append('|Type|Number|')
-        markdown_files.append('|-|-|')
-        markdown_files.append('|error|{}|'.format(json_counter['error']))
-        markdown_files.append('|warning|{}|'.format(json_counter['warning']))
-        markdown_files.append('|refactor|{}|'.format(json_counter['refactor']))
-        markdown_files.append('|convention|{}|'.format(json_counter['convention']))
+        markdown_files.extend(
+            (
+                '|Type|Number|',
+                '|-|-|',
+                f"|error|{json_counter['error']}|",
+                f"|warning|{json_counter['warning']}|",
+                f"|refactor|{json_counter['refactor']}|",
+                f"|convention|{json_counter['convention']}|",
+            )
+        )
 
         # Add to the counters
         totals['error'] += json_counter['error']
@@ -52,36 +56,40 @@ def pylint_markdown(location, output_path):
 
         markdown_files.append('\n### Pylint messages\n')
         if lint_json is not None:
-            for lint in lint_json:
-                markdown_files.append('* Line: {} is {}[{}] in {}.py\n'.format(
-                    lint['line'], lint['message'], lint['message-id'], lint['module']))
+            markdown_files.extend(
+                '* Line: {} is {}[{}] in {}.py\n'.format(
+                    lint['line'],
+                    lint['message'],
+                    lint['message-id'],
+                    lint['module'],
+                )
+                for lint in lint_json
+            )
+
         else:
             markdown_files.append('* No issues found')
 
         markdown_files.append('---')
 
-    # create summary
+    markdown_summary.extend(
+        ('|Item|Number|', '|-|-|', f'|files processed|{filecount}|')
+    )
 
-    markdown_summary.append('|Item|Number|')
-    markdown_summary.append('|-|-|')
-    markdown_summary.append('|files processed|{}|'.format(filecount))
-    markdown_summary.append('|errors|{}|'.format(totals['error']))
-    markdown_summary.append('|warnings|{}|'.format(totals['warning']))
-    markdown_summary.append('|refactors|{}|'.format(totals['refactor']))
-    markdown_summary.append('|conventions|{}|'.format(totals['convention']))
-    markdown_summary.append('---')
+    markdown_summary.append(f"|errors|{totals['error']}|")
+    markdown_summary.append(f"|warnings|{totals['warning']}|")
+    markdown_summary.append(f"|refactors|{totals['refactor']}|")
+    markdown_summary.extend((f"|conventions|{totals['convention']}|", '---'))
+    print(
+        f"errors={totals['error']};warnings={totals['warning']};refactors={totals['refactor']};conventions={totals['convention']}"
+    )
 
-    print('errors={};warnings={};refactors={};conventions={}'.format(totals['error'],
-                                                                     totals['warning'],
-                                                                     totals['refactor'],
-                                                                     totals['convention']))
 
     export_as_markdown(output_path, (markdown_summary + markdown_files))
 
 def export_as_markdown(output_path, markdown):
     """Export the markdown content"""
 
-    print('Generating markdown file: {}'.format(output_path))
+    print(f'Generating markdown file: {output_path}')
     with open(output_path, 'w') as out_file:
         for row in markdown:
             out_file.write(row+'\n')
@@ -104,8 +112,8 @@ def main(argv):
             location = arg
         elif opt in ("-o", "--oooutput_file"):
             output_file = arg
-    print('Location  is {}'.format(location))
-    print('Output file is {}'.format(output_file))
+    print(f'Location  is {location}')
+    print(f'Output file is {output_file}')
 
     if location is not None and output_file is not None:
         pylint_markdown(location, output_file)
